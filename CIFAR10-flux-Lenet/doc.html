@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Step 1&colon; Loading the Data and Preprocessing the Data</title>
+        <style>
+/* From extension vscode.github */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.vscode-dark img[src$=\#gh-light-mode-only],
+.vscode-light img[src$=\#gh-dark-mode-only] {
+	display: none;
+}
+
+/* From extension ms-toolsai.jupyter */
+/* These classnames are inherited from bootstrap, but are present in most notebook renderers */
+
+.alert {
+    width: auto;
+    padding: 1em;
+    margin-top: 1em;
+    margin-bottom: 1em;
+}
+.alert > *:last-child {
+    margin-bottom: 0;
+}
+#preview > .alert:last-child {
+    /* Prevent this being set to zero by the default notebook stylesheet */
+    padding-bottom: 1em;
+}
+
+.alert-success {
+    /* Note there is no suitable color available, so we just copy "info" */
+    background-color: var(--theme-info-background);
+    color: var(--theme-info-foreground);
+}
+.alert-info {
+    background-color: var(--theme-info-background);
+    color: var(--theme-info-foreground);
+}
+.alert-warning {
+    background-color: var(--theme-warning-background);
+    color: var(--theme-warning-foreground);
+}
+.alert-danger {
+    background-color: var(--theme-error-background);
+    color: var(--theme-error-foreground);
+}
+
+</style>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex/dist/katex.min.css">
+<link href="https://cdn.jsdelivr.net/npm/katex-copytex@latest/dist/katex-copytex.min.css" rel="stylesheet" type="text/css">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/markdown.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/highlight.css">
+<style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif;
+                font-size: 14px;
+                line-height: 1.6;
+            }
+        </style>
+        <style>
+.task-list-item {
+    list-style-type: none;
+}
+
+.task-list-item-checkbox {
+    margin-left: -20px;
+    vertical-align: middle;
+    pointer-events: none;
+}
+</style>
+        
+    </head>
+    <body class="vscode-body vscode-light">
+        <p>LeNet-5 is a convolutional neural network (CNN) that was introduced by Yann LeCun et al. in their 1998 paper, &quot;Gradient-Based Learning Applied to Document Recognition.&quot; It was one of the first successful applications of CNNs on a large-scale image recognition task, and it is still widely used today as a starting point for many image recognition tasks.
+<img src="file:///c:\Users\Farhad\Documents\GitHub\Sample-julia\images\b5e5e3adbc2b907cb850ccb51d3c79766106b6848746e9b153e7ce31107b5ba4.png" alt="picture 1"><br>
+[1] Y. LeCun, L. Bottou, Y. Bengio, and P. Haffner. Gradient-based learning applied to document recognition. Proceedings of the IEEE, november 1998.</p>
+<p>In this tutorial, we will see how to train a LeNet-5 model on the CIFAR-10 dataset using Flux.jl, a machine learning library for the Julia programming language.
+Installing Flux.jl</p>
+<!-- In this post we are going to train CIFAR-10 with LeNet-5 and Flux.jl -->
+<p>To train LeNet-5 on CIFAR-10 with Flux.jl, you will need to have the following installed:</p>
+<pre><code>Julia 1.5 or higher
+Flux.jl
+CIFAR-10 dataset
+</code></pre>
+<!-- LeNet-5 is a convolutional neural network (CNN) designed by Yann LeCun and his colleagues in the 1990s. It was one of the first successful CNNs and is widely used as a benchmark for comparing the performance of different CNN architectures on image classification tasks. In this tutorial, we will train LeNet-5 on the CIFAR-10 dataset using Flux.jl, which is a machine learning library for the Julia programming language. -->
+<p>If you don't have Julia and Flux.jl installed, you can follow the instructions on the Julia website (<a href="https://julialang.org/downloads/">https://julialang.org/downloads/</a>) and the Flux.jl documentation (<a href="https://fluxml.ai/getting_started/">https://fluxml.ai/getting_started/</a>) to install them.</p>
+<p>First, we need to install Flux.jl. If you don't already have Julia installed on your system, you can download it from <a href="https://julialang.org/downloads/">https://julialang.org/downloads/</a>. Once you have Julia installed, open the Julia REPL (read-eval-print-loop) by running julia in your terminal.</p>
+<p>Next, we will install Flux.jl using the Pkg package manager. In the Julia REPL, type the following:</p>
+<pre><code class="language-julia"><span class="hljs-keyword">using</span> Pkg
+Pkg.add(<span class="hljs-string">&quot;Flux&quot;</span>)
+</code></pre>
+<!-- I personally use VsCode for IDE but you may use any editor you find useful. -->
+<p>We need to import the following packages.</p>
+<pre><code class="language-julia"><span class="hljs-keyword">using</span> Flux
+<span class="hljs-keyword">using</span> Flux: onehotbatch, argmax, crossentropy, throttle, <span class="hljs-meta">@epochs</span>
+<span class="hljs-keyword">using</span> Base.Iterators: repeated, partition
+<span class="hljs-keyword">using</span> MLDatasets
+
+</code></pre>
+<p>If you noticed you getting an error saying some packages doesn't exist, you can install them as:</p>
+<pre><code class="language-julia"><span class="hljs-keyword">import</span> Pkg; Pkg.add(<span class="hljs-string">&quot;Name-of-package&quot;</span>) <span class="hljs-comment"># replace the name-of-package with your package </span>
+</code></pre>
+<h2 id="step-1-loading-the-data-and-preprocessing-the-data">Step 1: Loading the Data and Preprocessing the Data</h2>
+<p>Next, we need to download and load the CIFAR-10 dataset. The CIFAR-10 dataset consists of 60,000 32x32 color images in 10 classes, with 6,000 images per class. The 10 classes are:</p>
+<pre><code>airplane
+automobile
+bird
+cat
+deer
+dog
+frog
+horse
+ship
+truck
+</code></pre>
+<p>We will use the MLDatasets package to do this. This package includes functions to download and load the dataset.</p>
+<pre><code class="language-julia"><span class="hljs-comment"># load CIFAR-10 training set</span>
+trainX, trainY = CIFAR10.traindata()
+testX,  testY  = CIFAR10.testdata()
+</code></pre>
+<p>Note that the very first time you do this, it may take a long time or even ask you</p>
+<pre><code class="language-julia">
+<span class="hljs-comment"># Do you want to download the dataset from https://www.cs.toronto.edu/~kriz/cifar-10-binary.tar.gz to &quot;C:\Users\Farhad\.julia\datadeps\CIFAR10&quot;?</span>
+<span class="hljs-comment"># [y/n]</span>
+
+</code></pre>
+<p>You need to type y, then enter.</p>
+<p>One good practice is to write a function to load and clean the data:</p>
+<pre><code class="language-julia">
+<span class="hljs-keyword">function</span> get_data(batchsize; dataset = MLDatasets.CIFAR10, idxs = <span class="hljs-literal">nothing</span>, T= <span class="hljs-built_in">Float32</span>)
+    <span class="hljs-string">&quot;&quot;&quot;
+    idxs=nothing gives the full dataset, otherwise (for testing purposes) only the 1:idxs elements of the train set are given.
+    dataset is the datasets we will use
+
+    &quot;&quot;&quot;</span>
+    <span class="hljs-literal">ENV</span>[<span class="hljs-string">&quot;DATADEPS_ALWAYS_ACCEPT&quot;</span>] = <span class="hljs-string">&quot;true&quot;</span> 
+
+    <span class="hljs-comment"># Loading Dataset</span>
+    <span class="hljs-keyword">if</span> idxs===<span class="hljs-literal">nothing</span>
+        xtrain, ytrain = dataset(Tx=T,:train)[:]
+        xtest, ytest = dataset(Tx=T,:test)[:]
+	<span class="hljs-keyword">else</span>
+        xtrain, ytrain = dataset(Tx=T,:train)[<span class="hljs-number">1</span>:idxs]
+        xtest, ytest = dataset(Tx=T, :test)[<span class="hljs-number">1</span>:<span class="hljs-built_in">Int</span>(idxs/<span class="hljs-number">10</span>)]
+    <span class="hljs-keyword">end</span>
+
+    <span class="hljs-comment"># Reshape Data to comply to Julia&#x27;s (width, height, channels, batch_size) convention in case there are only 1 channel (eg MNIST)</span>
+    <span class="hljs-keyword">if</span> ndims(xtrain)==<span class="hljs-number">3</span>
+        w = size(xtrain)[<span class="hljs-number">1</span>]
+        xtrain = reshape(xtrain, (w,w,<span class="hljs-number">1</span>,:))
+        xtest = reshape(xtest, (w,w,<span class="hljs-number">1</span>,:))
+    <span class="hljs-keyword">end</span>
+    
+    <span class="hljs-comment"># construct one-hot vectors from labels</span>
+    ytrain, ytest = onehotbatch(ytrain, <span class="hljs-number">0</span>:<span class="hljs-number">9</span>), onehotbatch(ytest, <span class="hljs-number">0</span>:<span class="hljs-number">9</span>)
+
+    train_loader = DataLoader((xtrain, ytrain), batchsize=batchsize, shuffle=<span class="hljs-literal">true</span>)
+    test_loader = DataLoader((xtest, ytest), batchsize=batchsize)
+
+    <span class="hljs-keyword">return</span> train_loader, test_loader
+<span class="hljs-keyword">end</span>
+</code></pre>
+<p>The function <code>get_data</code> performs the following tasks:</p>
+<ul>
+<li><strong>Loads some dataset:</strong> Loads the train and test set tensors. Here we set the defualt to CIFAR-10</li>
+<li><strong>Reshapes the train and test data:</strong>  Notice that we reshape the data so that we can pass it as arguments for the input layer of the model.</li>
+<li><strong>One-hot encodes the train and test labels:</strong> Creates a batch of one-hot vectors so we can pass the labels of the data as arguments for the loss function. For this example, we use the <a href="https://fluxml.ai/Flux.jl/stable/models/losses/#Flux.Losses.logitcrossentropy">logitcrossentropy</a> function and it expects data to be one-hot encoded.</li>
+<li><strong>Creates mini-batches of data:</strong> Creates two DataLoader objects (train and test) that handle data mini-batches of size defined by minibatch. We create these two objects so that we can pass the entire data set through the loss function at once when training our model. Also, it shuffles the data points during each iteration (<code>shuffle=true</code>).</li>
+</ul>
+<h2 id="step-2-defining-the-model">Step 2: Defining the Model</h2>
+<p>Now that we have our data preprocessed, we can define our model. We will use the Flux.jl package to define our LeNet-5 model.</p>
+<p>I like to create a function that I can resue for other image datasets so here is the function.</p>
+<pre><code class="language-julia"><span class="hljs-keyword">function</span> LeNet5(; imgsize = (<span class="hljs-number">32</span>, <span class="hljs-number">32</span>, <span class="hljs-number">3</span>), nclasses = <span class="hljs-number">10</span>)
+    in_channels  = imgsize[<span class="hljs-keyword">end</span>]  <span class="hljs-comment"># for CIFAR-10 is 3 for MNIST Is 1</span>
+    <span class="hljs-comment">#Conv((K,K), in=&gt;out, acivation ) where K is the kernal size</span>
+    <span class="hljs-keyword">return</span> Chain(
+        Conv((<span class="hljs-number">5</span>, <span class="hljs-number">5</span>), in_channels =&gt; <span class="hljs-number">6</span>*in_channels, relu),  <span class="hljs-comment">#pad=(1, 1), stride=(1, 1)),</span>
+        MaxPool((<span class="hljs-number">2</span>, <span class="hljs-number">2</span>)),
+        Conv((<span class="hljs-number">5</span>, <span class="hljs-number">5</span>), <span class="hljs-number">6</span>*in_channels=&gt; <span class="hljs-number">16</span>*in_channels, relu),
+        MaxPool((<span class="hljs-number">2</span>, <span class="hljs-number">2</span>)),
+        flatten,
+        <span class="hljs-comment"># Dense(prod(out_conv_size), 120, relu),</span>
+        Dense(<span class="hljs-number">16</span>*<span class="hljs-number">5</span>*<span class="hljs-number">5</span>*in_channels=&gt;  <span class="hljs-number">120</span>*in_channels, relu),        
+        Dense(<span class="hljs-number">120</span>*in_channels=&gt; <span class="hljs-number">84</span>*in_channels, relu),
+        Dense(<span class="hljs-number">84</span>*in_channels=&gt;  nclasses),
+    )
+<span class="hljs-keyword">end</span>
+</code></pre>
+<p>It is a bit different from PyTorch as here, you have to define your kernal.
+If you test it , you should get something like:</p>
+<pre><code class="language-julia-repl"><span class="hljs-meta prompt_">julia&gt;</span><span class="language-julia"> LeNet5()
+</span>Chain(
+  Conv((5, 5), 3 =&gt; 18, relu),          # 1_368 parameters
+  MaxPool((2, 2)),
+  Conv((5, 5), 18 =&gt; 48, relu),         # 21_648 parameters
+  MaxPool((2, 2)),
+  Flux.flatten,
+  Dense(1200 =&gt; 360, relu),             # 432_360 parameters
+  Dense(360 =&gt; 252, relu),              # 90_972 parameters
+  Dense(252 =&gt; 10),                     # 2_530 parameters
+)                   # Total: 10 arrays, 548_878 parameters, 2.095 MiB.
+
+</code></pre>
+<h2 id="step-3-train-the-model">Step 3: Train the model</h2>
+<p>This section is closly inspired by <a href="https://github.com/FluxML/model-zoo/blob/master/vision/conv_mnist/conv_mnist.jl">https://github.com/FluxML/model-zoo/blob/master/vision/conv_mnist/conv_mnist.jl</a></p>
+<p>First we need to define a struct to hold all of the arguments for the train. (When I could in Python, I usually pass them at the command line but in Julia, it is easier to do so in struct)</p>
+<h3 id="argument">argument</h3>
+<pre><code class="language-julia">Base.<span class="hljs-meta">@kwdef</span> <span class="hljs-keyword">mutable struct</span> Args
+    η = <span class="hljs-number">3e-4</span>             <span class="hljs-comment">## learning rate</span>
+    λ = <span class="hljs-number">0</span>                <span class="hljs-comment">## L2 regularizer param, implemented as weight decay</span>
+    batchsize = <span class="hljs-number">128</span>      <span class="hljs-comment">## batch size</span>
+    epochs = <span class="hljs-number">10</span>          <span class="hljs-comment">## number of epochs</span>
+    seed = <span class="hljs-number">0</span>             <span class="hljs-comment">## set seed &gt; 0 for reproducibility</span>
+    use_cuda = <span class="hljs-literal">true</span>      <span class="hljs-comment">## if true use cuda (if available)</span>
+    infotime = <span class="hljs-number">1</span>      <span class="hljs-comment">## report every `infotime` epochs</span>
+    checktime = <span class="hljs-number">5</span>        <span class="hljs-comment">## Save the model every `checktime` epochs. Set to 0 for no checkpoints.</span>
+    tblogger = <span class="hljs-literal">true</span>      <span class="hljs-comment">## log training with tensorboard</span>
+    savepath = <span class="hljs-string">&quot;runs/&quot;</span>   <span class="hljs-comment">## results path</span>
+<span class="hljs-keyword">end</span>
+</code></pre>
+<p>For the loss function, there are many choises but, here we choose the simplest one.</p>
+<h3 id="loss-function">Loss function</h3>
+<p>We use the function <a href="https://fluxml.ai/Flux.jl/stable/models/losses/#Flux.Losses.logitcrossentropy">logitcrossentropy</a> to compute the difference between the predicted and actual values (loss).</p>
+<pre><code class="language-julia">loss(ŷ, y) = logitcrossentropy(ŷ, y)
+
+<span class="hljs-comment"># To output the loss and the accuracy during training:</span>
+
+<span class="hljs-keyword">function</span> eval_loss_accuracy(loader, model, device)
+    l = <span class="hljs-number">0f0</span>
+    acc = <span class="hljs-number">0</span>
+    ntot = <span class="hljs-number">0</span>
+    <span class="hljs-keyword">for</span> (x, y) <span class="hljs-keyword">in</span> loader
+        x, y = x |&gt; device, y |&gt; device
+        ŷ = model(x)
+        l += loss(ŷ, y) * size(x)[<span class="hljs-keyword">end</span>]        
+        acc += sum(onecold(ŷ |&gt; cpu) .== onecold(y |&gt; cpu))
+        ntot += size(x)[<span class="hljs-keyword">end</span>]
+    <span class="hljs-keyword">end</span>
+    <span class="hljs-keyword">return</span> (loss = l/ntot |&gt; round4, acc = acc/ntot*<span class="hljs-number">100</span> |&gt; round4)
+<span class="hljs-keyword">end</span>
+</code></pre>
+<h3 id="utility-functions">Utility functions</h3>
+<p>e need a couple of functions to obtain the total number of the model's parameters. Also, we create a function to round numbers to four digits.</p>
+<pre><code class="language-julia">num_params(model) = sum(length, Flux.params(model)) 
+round4(x) = round(x, digits=<span class="hljs-number">4</span>)
+</code></pre>
+<h3 id="train-the-model">Train the model</h3>
+<pre><code class="language-julia"><span class="hljs-keyword">function</span> train(; kws...)
+    args = Args(; kws...)
+    args.seed &gt; <span class="hljs-number">0</span> &amp;&amp; Random.seed!(args.seed)
+    use_cuda = args.use_cuda &amp;&amp; CUDA.functional()
+    <span class="hljs-comment"># here we decide to use GPU or not, CUDA.functional() returns true if GPU is detected</span>
+    <span class="hljs-keyword">if</span> use_cuda
+        device = gpu
+        <span class="hljs-meta">@info</span> <span class="hljs-string">&quot;Training on GPU&quot;</span>
+    <span class="hljs-keyword">else</span>
+        device = cpu
+        <span class="hljs-meta">@info</span> <span class="hljs-string">&quot;Training on CPU&quot;</span>
+    <span class="hljs-keyword">end</span>
+
+    <span class="hljs-comment">## DATA is loaded </span>
+    train_loader, test_loader = get_data(args)
+    <span class="hljs-meta">@info</span> <span class="hljs-string">&quot;Dataset CIFAR-10: <span class="hljs-subst">$(train_loader.nobs)</span> train and <span class="hljs-subst">$(test_loader.nobs)</span> test examples&quot;</span>
+
+    <span class="hljs-comment">## MODEL AND OPTIMIZER</span>
+    model = LeNet5() |&gt; device
+    <span class="hljs-meta">@info</span> <span class="hljs-string">&quot;LeNet5 model: <span class="hljs-subst">$(num_params(model)</span>) trainable params&quot;</span>    
+    
+    ps = Flux.params(model)  
+
+    <span class="hljs-comment"># here we use ADAM optimizer but we can change that to any type of supported optimizers</span>
+
+    opt = ADAM(args.η) 
+    <span class="hljs-keyword">if</span> args.λ &gt; <span class="hljs-number">0</span> <span class="hljs-comment">## add weight decay, equivalent to L2 regularization</span>
+        opt = Optimiser(WeightDecay(args.λ), opt)
+    <span class="hljs-keyword">end</span>
+    
+    <span class="hljs-comment">## LOGGING UTILITIES</span>
+    <span class="hljs-keyword">if</span> args.tblogger 
+        tblogger = TBLogger(args.savepath, tb_overwrite)
+        set_step_increment!(tblogger, <span class="hljs-number">0</span>) <span class="hljs-comment">## 0 auto increment since we manually set_step!</span>
+        <span class="hljs-meta">@info</span> <span class="hljs-string">&quot;TensorBoard logging at \&quot;<span class="hljs-subst">$(args.savepath)</span>\&quot;&quot;</span>
+    <span class="hljs-keyword">end</span>
+    
+    <span class="hljs-keyword">function</span> report(epoch)
+        train = eval_loss_accuracy(train_loader, model, device)
+        test = eval_loss_accuracy(test_loader, model, device)        
+        println(<span class="hljs-string">&quot;Epoch: <span class="hljs-variable">$epoch</span>   Train: <span class="hljs-subst">$(train)</span>   Test: <span class="hljs-subst">$(test)</span>&quot;</span>)
+        <span class="hljs-keyword">if</span> args.tblogger
+            set_step!(tblogger, epoch)
+            with_logger(tblogger) <span class="hljs-keyword">do</span>
+                <span class="hljs-meta">@info</span> <span class="hljs-string">&quot;train&quot;</span> loss=train.loss  acc=train.acc
+                <span class="hljs-meta">@info</span> <span class="hljs-string">&quot;test&quot;</span>  loss=test.loss   acc=test.acc
+            <span class="hljs-keyword">end</span>
+        <span class="hljs-keyword">end</span>
+    <span class="hljs-keyword">end</span>
+    
+    <span class="hljs-comment">## TRAINING</span>
+    <span class="hljs-meta">@info</span> <span class="hljs-string">&quot;Start Training&quot;</span>
+    report(<span class="hljs-number">0</span>)
+    <span class="hljs-keyword">for</span> epoch <span class="hljs-keyword">in</span> <span class="hljs-number">1</span>:args.epochs
+        <span class="hljs-meta">@showprogress</span> <span class="hljs-keyword">for</span> (x, y) <span class="hljs-keyword">in</span> train_loader
+            x, y = x |&gt; device, y |&gt; device
+            gs = Flux.gradient(ps) <span class="hljs-keyword">do</span>
+                    ŷ = model(x)
+                    loss(ŷ, y)
+                <span class="hljs-keyword">end</span>
+
+            Flux.Optimise.update!(opt, ps, gs)
+        <span class="hljs-keyword">end</span>
+        
+        <span class="hljs-comment">## Printing and logging</span>
+        epoch % args.infotime == <span class="hljs-number">0</span> &amp;&amp; report(epoch)
+        <span class="hljs-keyword">if</span> args.checktime &gt; <span class="hljs-number">0</span> &amp;&amp; epoch % args.checktime == <span class="hljs-number">0</span>
+            !ispath(args.savepath) &amp;&amp; mkpath(args.savepath)
+            modelpath = joinpath(args.savepath, <span class="hljs-string">&quot;model.bson&quot;</span>) 
+            <span class="hljs-keyword">let</span> model = cpu(model) <span class="hljs-comment">## return model to cpu before serialization</span>
+                BSON.<span class="hljs-meta">@save</span> modelpath model epoch
+            <span class="hljs-keyword">end</span>
+            <span class="hljs-meta">@info</span> <span class="hljs-string">&quot;Model saved in \&quot;<span class="hljs-subst">$(modelpath)</span>\&quot;&quot;</span>
+        <span class="hljs-keyword">end</span>
+    <span class="hljs-keyword">end</span>
+<span class="hljs-keyword">end</span>
+</code></pre>
+<p>The function <code>train</code> performs the following tasks:</p>
+<ul>
+<li>Checks whether there is a GPU available and uses it for training the model. Otherwise, it uses the CPU.</li>
+<li>Loads the CIFAR-10 data using the function <code>get_data</code>.</li>
+<li>Creates the model and uses the <a href="https://fluxml.ai/Flux.jl/stable/training/optimisers/#Flux.Optimise.ADAM">ADAM optimiser</a> with weight decay.</li>
+<li>Loads the <a href="https://github.com/JuliaLogging/TensorBoardLogger.jl">TensorBoardLogger.jl</a> for logging data to Tensorboard.</li>
+<li>Creates the function <code>report</code> for computing the loss and accuracy during the training loop. It outputs these values to the TensorBoardLogger.</li>
+<li>Runs the training loop using <a href="https://fluxml.ai/Flux.jl/stable/training/training/#Training">Flux’s training routine</a>. For each epoch (step), it executes the following:
+<ul>
+<li>Computes the model’s predictions.</li>
+<li>Computes the loss.</li>
+<li>Updates the model’s parameters.</li>
+<li>Saves the model <code>model.bson</code> every <code>checktime</code> epochs (defined as argument above.)</li>
+</ul>
+</li>
+</ul>
+<h2 id="run-the-example">Run the example</h2>
+<p>call train()</p>
+<h2 id="compare-with-pytorch">Compare with PyTorch</h2>
+<p>Now that you have trained and evaluated the model with Flux.jl, you can compare its performance to that of a pytorch model trained on CIFAR-10.</p>
+<p>To do this, you can use the same code you used to train the model in Flux.jl, but this time using PyTorch. You can then evaluate the model with the same evaluate() function from Flux.jl.</p>
+<p>Once you have evaluated both models, you can compare their performance and see which one performs better.</p>
+<h2 id="reference">Reference</h2>
+<ul>
+<li><a href="https://github.com/FluxML/model-zoo/blob/master/vision/conv_mnist/conv_mnist.jl">https://github.com/FluxML/model-zoo/blob/master/vision/conv_mnist/conv_mnist.jl</a></li>
+<li>Y. LeCun, L. Bottou, Y. Bengio, and P. Haffner. Gradient-based learning applied to document recognition. Proceedings of the IEEE, november 1998.</li>
+</ul>
+
+        <script async src="https://cdn.jsdelivr.net/npm/katex-copytex@latest/dist/katex-copytex.min.js"></script>
+        
+    </body>
+    </html>
